@@ -2,15 +2,15 @@ import requests
 import time
 import json
 
-# === НАСТРОЙКИ ===
-TOKEN = "f9LHodD0cOLFBjkYZrsosdv49516uFOuBXRhpjN8OYP4rf1MNiCFgUuNKxYSyUj0yIp5Yq36DwPvFF29T5hm"  # ← Замените на реальный токен
+# === ТОКЕН БОТА (вставьте свой) ===
+TOKEN = "f9LHodD0cOLFBjkYZrsosdv49516uFOuBXRhpjN8OYP4rf1MNiCFgUuNKxYSyUj0yIp5Yq36DwPvFF29T5hm"
 API_URL = "https://platform-api.max.ru"
 HEADERS = {
     "Authorization": TOKEN,
     "Content-Type": "application/json"
 }
 
-# === ТЕКСТЫ ОТВЕТОВ ===
+# === ТЕКСТЫ ===
 WELCOME_TEXT = (
     "Здравствуйте! 👋\n"
     "Я — официальный бот **МКОУ «СОШ №15» ИМОСК** (станица Староизобильная).\n\n"
@@ -58,7 +58,6 @@ UNKNOWN_TEXT = (
     "`/start` — чтобы вернуть меню."
 )
 
-# === INLINE-КЛАВИАТУРА ===
 def get_inline_keyboard():
     return {
         "type": "inline_keyboard",
@@ -80,7 +79,6 @@ def get_inline_keyboard():
         }
     }
 
-# === ОТПРАВКА СООБЩЕНИЯ ===
 def send_message(chat_id, text, keyboard=None, format_type="markdown"):
     url = f"{API_URL}/messages"
     payload = {
@@ -91,32 +89,26 @@ def send_message(chat_id, text, keyboard=None, format_type="markdown"):
     if keyboard:
         payload["attachments"] = [keyboard]
     try:
-        response = requests.post(url, headers=HEADERS, json=payload)
-        if response.status_code != 200:
-            print(f"Ошибка отправки: {response.status_code} — {response.text}")
+        resp = requests.post(url, headers=HEADERS, json=payload, timeout=10)
+        if resp.status_code != 200:
+            print(f"⚠️ Ошибка отправки: {resp.status_code}")
     except Exception as e:
-        print(f"Исключение при отправке: {e}")
+        print(f"💥 Ошибка: {e}")
 
-# === ПОЛУЧЕНИЕ ОБНОВЛЕНИЙ ===
 def get_updates(offset=None):
     url = f"{API_URL}/updates"
     params = {"offset": offset} if offset else {}
     try:
-        response = requests.get(url, headers=HEADERS, params=params, timeout=10)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            print(f"Ошибка получения обновлений: {response.status_code}")
-            return {}
-    except Exception as e:
-        print(f"Исключение при получении обновлений: {e}")
+        resp = requests.get(url, headers=HEADERS, params=params, timeout=10)
+        if resp.status_code == 200:
+            return resp.json()
+        return {}
+    except:
         return {}
 
-# === ОБРАБОТКА СООБЩЕНИЯ ===
 def handle_message(message):
     chat_id = message["chat"]["id"]
     text = message.get("text", "").strip()
-
     if text in ["/start", "/help"]:
         send_message(chat_id, WELCOME_TEXT, get_inline_keyboard())
     elif text == "/address":
@@ -130,25 +122,17 @@ def handle_message(message):
     else:
         send_message(chat_id, UNKNOWN_TEXT)
 
-# === ОСНОВНОЙ ЦИКЛ ===
 def main():
     print("✅ Бот запущен. Ожидание сообщений...")
     offset = None
     while True:
         updates = get_updates(offset)
         for update in updates.get("updates", []):
-            # Защита: проверяем наличие обязательного поля
             if "update_id" not in update:
-                print(f"⚠️ Пропущено обновление без update_id: {update}")
                 continue
-
-            # Обрабатываем только сообщения
             if "message" in update and "text" in update["message"]:
                 handle_message(update["message"])
-
-            # Обновляем offset ТОЛЬКО после успешной обработки
             offset = update["update_id"] + 1
-
         time.sleep(1)
 
 if __name__ == "__main__":
