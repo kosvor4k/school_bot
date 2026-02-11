@@ -2,11 +2,12 @@ import requests
 import time
 import json
 
-# === ТОКЕН БОТА (вставьте свой) ===
+# === ТОКЕН БОТА ===
 TOKEN = "f9LHodD0cOLFBjkYZrsosdv49516uFOuBXRhpjN8OYP4rf1MNiCFgUuNKxYSyUj0yIp5Yq36DwPvFF29T5hm"
+
 API_URL = "https://platform-api.max.ru"
 HEADERS = {
-    "Authorization": TOKEN,
+    "Authorization": f"Bearer {TOKEN}",
     "Content-Type": "application/json"
 }
 
@@ -88,52 +89,90 @@ def send_message(chat_id, text, keyboard=None, format_type="markdown"):
     }
     if keyboard:
         payload["attachments"] = [keyboard]
+
     try:
         resp = requests.post(url, headers=HEADERS, json=payload, timeout=10)
         if resp.status_code != 200:
-            print(f"⚠️ Ошибка отправки: {resp.status_code}")
+            print(f"Ошибка отправки сообщения: {resp.status_code} - {resp.text}")
+        else:
+            print(f"Сообщение отправлено в чат {chat_id}")
     except Exception as e:
-        print(f"💥 Ошибка: {e}")
+        print(f"Исключение при отправке сообщения: {e}")
 
-def get_updates(offset=None):
+def get_updates(marker=None):
     url = f"{API_URL}/updates"
-    params = {"offset": offset} if offset else {}
+    params = {"marker": marker} if marker is not None else {}
+    
     try:
         resp = requests.get(url, headers=HEADERS, params=params, timeout=10)
         if resp.status_code == 200:
             return resp.json()
-        return {}
-    except:
+        else:
+            print(f"Ошибка получения обновлений: {resp.status_code} - {resp.text}")
+            return {}
+    except Exception as e:
+        print(f"Исключение при получении обновлений: {e}")
         return {}
 
-def handle_message(message):
-    chat_id = message["chat"]["id"]
-    text = message.get("text", "").strip()
-    if text in ["/start", "/help"]:
-        send_message(chat_id, WELCOME_TEXT, get_inline_keyboard())
-    elif text == "/address":
-        send_message(chat_id, ADDRESS_TEXT)
-    elif text == "/contacts":
-        send_message(chat_id, CONTACTS_TEXT)
-    elif text == "/reception":
-        send_message(chat_id, RECEPTION_TEXT)
-    elif text == "/enrollment":
-        send_message(chat_id, ENROLLMENT_TEXT)
-    else:
-        send_message(chat_id, UNKNOWN_TEXT)
+def handle_update(update):
+    if "message" in update and "text" in update["message"]:
+        message = update["message"]
+        chat_id = message["chat"]["id"]
+        text = message.get("text", "").strip().lower()
+
+        if text in ["/start", "/help"]:
+            send_message(chat_id, WELCOME_TEXT, get_inline_keyboard())
+        
+        elif text == "/address":
+            send_message(chat_id, ADDRESS_TEXT)
+        
+        elif text == "/contacts":
+            send_message(chat_id, CONTACTS_TEXT)
+        
+        elif text == "/reception":
+            send_message(chat_id, RECEPTION_TEXT)
+        
+        elif text == "/enrollment":
+            send_message(chat_id, ENROLLMENT_TEXT)
+        
+        else:
+            send_message(chat_id, UNKNOWN_TEXT, get_inline_keyboard())
+
+    # Поддержка запуска через deep link (опционально)
+    elif update.get("update_type") == "bot_started":
+        chat_id = update.get("chat_id")
+        payload = update.get("payload")
+        print(f"Бот запущен через deep link, payload: {payload}")
+        if chat_id:
+            send_message(chat_id, WELCOME_TEXT, get_inline_keyboard())
 
 def main():
     print("✅ Бот запущен. Ожидание сообщений...")
-    offset = None
+    marker = None
+    
     while True:
-        updates = get_updates(offset)
-        for update in updates.get("updates", []):
-            if "update_id" not in update:
+        try:
+            data = get_updates(marker)
+            if not data:
+                time.sleep(2)
                 continue
-            if "message" in update and "text" in update["message"]:
-                handle_message(update["message"])
-            offset = update["update_id"] + 1
-        time.sleep(1)
+
+            updates = data.get("updates", [])
+            new_marker = data.get("marker")
+
+            if updates:
+                print(f"Получено {len(updates)} обновлений")
+                for update in updates:
+                    handle_update(update)
+
+            if new_marker is not None:
+                marker = new_marker
+
+            time.sleep(1.5)  # пауза, чтобы не превышать лимит 30 rps
+
+        except Exception as e:
+            print(f"Ошибка в главном цикле: {e}")
+            time.sleep(5)  # пауза при серьёзной ошибке
 
 if __name__ == "__main__":
     main()
