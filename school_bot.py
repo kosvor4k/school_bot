@@ -102,16 +102,22 @@ def send_message(chat_id, text, keyboard=None, format_type="markdown"):
 def get_updates(marker=None):
     url = f"{API_URL}/updates"
     params = {"marker": marker} if marker is not None else {}
-    
+    params["timeout"] = 30  # ← явно укажи таймаут, сервер может держать соединение дольше
+
     try:
-        resp = requests.get(url, headers=HEADERS, params=params, timeout=10)
+        print(f"→ Запрос обновлений с marker={marker}")
+        resp = requests.get(url, headers=HEADERS, params=params, timeout=40)
+        
+        print(f"← Статус: {resp.status_code}")
         if resp.status_code == 200:
-            return resp.json()
+            data = resp.json()
+            print(f"Ответ сервера: {json.dumps(data, indent=2, ensure_ascii=False)}")  # ← полный дамп
+            return data
         else:
-            print(f"Ошибка получения обновлений: {resp.status_code} - {resp.text}")
+            print(f"Ошибка: {resp.status_code} — {resp.text}")
             return {}
     except Exception as e:
-        print(f"Исключение при получении обновлений: {e}")
+        print(f"Исключение: {e}")
         return {}
 
 def handle_update(update):
