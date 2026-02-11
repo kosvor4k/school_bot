@@ -137,9 +137,18 @@ def main():
     while True:
         updates = get_updates(offset)
         for update in updates.get("updates", []):
+            # Защита: проверяем наличие обязательного поля
+            if "update_id" not in update:
+                print(f"⚠️ Пропущено обновление без update_id: {update}")
+                continue
+
+            # Обрабатываем только сообщения
             if "message" in update and "text" in update["message"]:
                 handle_message(update["message"])
+
+            # Обновляем offset ТОЛЬКО после успешной обработки
             offset = update["update_id"] + 1
+
         time.sleep(1)
 
 if __name__ == "__main__":
