@@ -3,11 +3,13 @@ import time
 import json
 
 # === ТОКЕН БОТА ===
+# Убедись, что вставлен актуальный токен из личного кабинета MAX (Интеграция → Получить токен)
 TOKEN = "f9LHodD0cOLFBjkYZrsosdv49516uFOuBXRhpjN8OYP4rf1MNiCFgUuNKxYSyUj0yIp5Yq36DwPvFF29T5hm"
 
 API_URL = "https://platform-api.max.ru"
+
 HEADERS = {
-    "Authorization": f"Bearer {TOKEN}",
+    "Authorization": TOKEN,              # ← без Bearer, просто сам токен
     "Content-Type": "application/json"
 }
 
@@ -93,25 +95,24 @@ def send_message(chat_id, text, keyboard=None, format_type="markdown"):
     try:
         resp = requests.post(url, headers=HEADERS, json=payload, timeout=10)
         if resp.status_code != 200:
-            print(f"Ошибка отправки сообщения: {resp.status_code} - {resp.text}")
+            print(f"Ошибка отправки: {resp.status_code} — {resp.text}")
         else:
-            print(f"Сообщение отправлено в чат {chat_id}")
+            print(f"Сообщение отправлено в {chat_id}")
     except Exception as e:
-        print(f"Исключение при отправке сообщения: {e}")
+        print(f"Исключение при отправке: {e}")
 
 def get_updates(marker=None):
     url = f"{API_URL}/updates"
-    params = {"marker": marker} if marker is not None else {}
-    params["timeout"] = 30  # ← явно укажи таймаут, сервер может держать соединение дольше
+    params = {"marker": marker, "timeout": 30} if marker is not None else {"timeout": 30}
 
     try:
-        print(f"→ Запрос обновлений с marker={marker}")
+        print(f"→ Запрос обновлений (marker={marker})")
         resp = requests.get(url, headers=HEADERS, params=params, timeout=40)
         
         print(f"← Статус: {resp.status_code}")
         if resp.status_code == 200:
             data = resp.json()
-            print(f"Ответ сервера: {json.dumps(data, indent=2, ensure_ascii=False)}")  # ← полный дамп
+            print(f"Ответ: {json.dumps(data, indent=2, ensure_ascii=False)}")
             return data
         else:
             print(f"Ошибка: {resp.status_code} — {resp.text}")
@@ -144,16 +145,22 @@ def handle_update(update):
         else:
             send_message(chat_id, UNKNOWN_TEXT, get_inline_keyboard())
 
-    # Поддержка запуска через deep link (опционально)
     elif update.get("update_type") == "bot_started":
         chat_id = update.get("chat_id")
-        payload = update.get("payload")
-        print(f"Бот запущен через deep link, payload: {payload}")
         if chat_id:
             send_message(chat_id, WELCOME_TEXT, get_inline_keyboard())
 
 def main():
     print("✅ Бот запущен. Ожидание сообщений...")
+    
+    # Тестовый запрос для проверки токена
+    try:
+        test_resp = requests.get(f"{API_URL}/me", headers=HEADERS, timeout=10)
+        print(f"Тест /me → статус: {test_resp.status_code}")
+        print(f"Ответ /me: {test_resp.text}")
+    except Exception as e:
+        print(f"Ошибка теста /me: {e}")
+
     marker = None
     
     while True:
@@ -167,18 +174,18 @@ def main():
             new_marker = data.get("marker")
 
             if updates:
-                print(f"Получено {len(updates)} обновлений")
+                print(f"Получено обновлений: {len(updates)}")
                 for update in updates:
                     handle_update(update)
 
             if new_marker is not None:
                 marker = new_marker
 
-            time.sleep(1.5)  # пауза, чтобы не превышать лимит 30 rps
-
+            time.sleep(1.5)
+            
         except Exception as e:
-            print(f"Ошибка в главном цикле: {e}")
-            time.sleep(5)  # пауза при серьёзной ошибке
+            print(f"Ошибка в цикле: {e}")
+            time.sleep(5)
 
 if __name__ == "__main__":
     main()
